@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 function Login() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { login, signup } = useAuth();
+  const { login } = useAuth();
   const [tab, setTab] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,7 +32,7 @@ function Login() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirm, setSignupConfirm] = useState('');
 
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
     setError('');
 
@@ -43,18 +43,25 @@ function Login() {
 
     setLoading(true);
 
-    try {
-      await login(loginEmail, loginPassword);
+    // Simulate API call delay
+    setTimeout(() => {
+      // For demo: accept any valid-looking email/password
+      // In production, this would call your backend API
+      const user = {
+        id: 'user_' + Date.now(),
+        name: loginEmail.split('@')[0], // temporary name from email
+        email: loginEmail,
+        avatar: null,
+        role: 'patient',
+      };
+
+      login(user);
       setLoading(false);
       navigate('/dashboard');
-    } catch (err) {
-      console.error('Login error:', err);
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
-      setLoading(false);
-    }
+    }, 800);
   };
 
-  const handleSignup = async (e) => {
+  const handleSignup = (e) => {
     e.preventDefault();
     setError('');
 
@@ -73,15 +80,19 @@ function Login() {
 
     setLoading(true);
 
-    try {
-      await signup(signupName, signupEmail, signupPassword);
+    setTimeout(() => {
+      const user = {
+        id: 'user_' + Date.now(),
+        name: signupName,
+        email: signupEmail,
+        avatar: null,
+        role: 'patient',
+      };
+
+      login(user);
       setLoading(false);
       navigate('/dashboard');
-    } catch (err) {
-      console.error('Signup error:', err);
-      setError(err.response?.data?.message || 'Signup failed. Please try again.');
-      setLoading(false);
-    }
+    }, 800);
   };
 
   return (

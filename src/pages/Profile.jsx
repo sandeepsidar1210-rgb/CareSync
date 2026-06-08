@@ -28,19 +28,6 @@ function Profile() {
     allergies: user?.allergies || '',
   });
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        age: user.age || '',
-        bloodGroup: user.bloodGroup || '',
-        allergies: user.allergies || '',
-      });
-    }
-  }, [user]);
-
   if (!isAuthenticated || !user) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -55,17 +42,11 @@ function Profile() {
     setFormData({ ...formData, [field]: e.target.value });
   };
 
-  const handleSave = async () => {
-    try {
-      await updateProfile(formData);
-      setEditing(false);
-      setMessage(t('profile:updateSuccess'));
-      setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
-      console.error('Save profile error:', err);
-      setMessage(err.response?.data?.message || 'Failed to update profile.');
-      setTimeout(() => setMessage(''), 3000);
-    }
+  const handleSave = () => {
+    updateProfile(formData);
+    setEditing(false);
+    setMessage(t('profile:updateSuccess'));
+    setTimeout(() => setMessage(''), 3000);
   };
 
   const handleCancel = () => {
