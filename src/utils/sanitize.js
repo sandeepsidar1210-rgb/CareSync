@@ -16,8 +16,12 @@ import {
  */
 export function sanitizeConfig(obj) {
   // Do not process special object types like FormData, Blob, etc.
-  if (obj && typeof obj === 'object' && obj.constructor !== Object && !Array.isArray(obj)) {
-    return obj;
+  // We securely check if the object is a plain object (has Object.prototype or null prototype).
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    const proto = Object.getPrototypeOf(obj);
+    if (proto !== Object.prototype && proto !== null) {
+      return obj;
+    }
   }
 
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
@@ -30,13 +34,30 @@ export function sanitizeConfig(obj) {
   const sanitized = {};
   const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-  for (const [key, value] of Object.entries(obj)) {
+  for (const key of Object.keys(obj)) {
     if (DANGEROUS_KEYS.has(key.trim().toLowerCase())) {
       console.warn(`Prototype pollution attempt blocked. Rejected key: "${key}"`);
       continue;
     }
 
-    sanitized[key] = sanitizeConfig(value);
+    // Use Object.defineProperty instead of bracket assignment.
+    // Bracket notation (`sanitized[key] = v`) invokes the __proto__ accessor
+    // setter when key === '__proto__', mutating Object.prototype (Prototype
+    // Pollution). This is the exact mechanism exploited by js-yaml's YAML
+    // merge-key (<<) handler in versions < 4.x: it copies anchor properties
+    // into the target mapping via direct property assignment, so an anchor
+    // containing __proto__ silently poisons Object.prototype.
+    //
+    // Object.defineProperty uses [[DefineOwnProperty]] instead of [[Set]],
+    // which bypasses the setter entirely and always creates a genuine own
+    // property — even if 'key' is '__proto__'. This is a second-layer
+    // defence that makes the guard above redundant-safe.
+    Object.defineProperty(sanitized, key, {
+      value: sanitizeConfig(obj[key]),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 
   return sanitized;
@@ -50,6 +71,9 @@ export function sanitizeConfig(obj) {
  * @throws {Error} If a value is invalid.
  */
 function _normalizeAndValidateHeaderValue(value, key) {
+  if (value === null || value === undefined) {
+    return '';
+  }
   const strVal = String(value).trim();
 
   if (strVal.length > 4096) {

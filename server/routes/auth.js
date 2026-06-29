@@ -1,5 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
+// Apply stricter limiter for auth endpoints (e.g., register, login)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each IP to 20 auth requests per window
+  message: 'Too many authentication attempts, please try again later.',
+});
+router.use(authLimiter);
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
@@ -44,7 +52,6 @@ router.post('/register', async (req, res) => {
 
     const { isValidEmail } = require('../utils/validation');
     if (!isValidEmail(email)) {
-    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
       await logSecurityEvent({
         eventType: EVENT_TYPES.AUTH_REGISTER_FAILURE,
         severity: SEVERITY.WARNING,
@@ -146,7 +153,6 @@ router.post('/login', async (req, res) => {
 
     const { isValidEmail } = require('../utils/validation');
     if (!isValidEmail(email)) {
-    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
       await logSecurityEvent({
         eventType: EVENT_TYPES.AUTH_LOGIN_FAILURE,
         severity: SEVERITY.WARNING,

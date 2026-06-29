@@ -1,10 +1,22 @@
+// Encryption utilities using libsodium-wrappers
+// Provides key generation, message encryption/decryption for end‑to‑end encryption
+
+const sodium = require('libsodium-wrappers');
 const crypto = require('crypto');
+
+// Ensure libsodium is initialized before any operation
+const ready = sodium.ready;
 
 const ALGORITHM = 'aes-256-gcm';
 
-// Derive a 32-byte key from the JWT_SECRET (or use a fallback for safety, though JWT_SECRET is required)
+// Derive a 32-byte key from the JWT_SECRET environment variable.
+// JWT_SECRET must always be set — the server should never operate with a
+// predictable/hardcoded key, which would be a critical CWE-321 vulnerability.
 const getEncryptionKey = () => {
-  const secret = process.env.JWT_SECRET || 'fallback-secret-key-32-chars-long!';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not configured. Encryption cannot proceed without a secret key.');
+  }
   return crypto.createHash('sha256').update(String(secret)).digest('base64').substring(0, 32);
 };
 
@@ -57,7 +69,55 @@ const decrypt = (encryptedText) => {
   }
 };
 
+/**
+ * Generate a public/private key pair.
+ * Returns an object { publicKey: string, privateKey: string } where keys are base64‑encoded.
+ */
+async function generateKeyPair() {
+  await ready;
+  const keyPair = sodium.crypto_box_keypair();
+  return {
+    publicKey: Buffer.from(keyPair.publicKey).toString('base64'),
+    privateKey: Buffer.from(keyPair.privateKey).toString('base64'),
+  };
+}
+
+/**
+ * Encrypt a message for a recipient using their public key.
+ * @param {string} recipientPublicKeyBase64 - base64 encoded public key of the recipient
+ * @param {string|Buffer} message - plaintext message
+ * @returns {Promise<string>} - base64 encoded ciphertext
+ */
+async function encryptMessage(recipientPublicKeyBase64, message) {
+  await ready;
+  const recipientPublicKey = Buffer.from(recipientPublicKeyBase64, 'base64');
+  const msgBuf = Buffer.isBuffer(message) ? message : Buffer.from(message);
+  const ciphertext = sodium.crypto_box_seal(msgBuf, recipientPublicKey);
+  return Buffer.from(ciphertext).toString('base64');
+}
+
+/**
+ * Decrypt a ciphertext using the receiver's key pair.
+ * crypto_box_seal_open requires the full key pair (public + private key).
+ * @param {string} privateKeyBase64 - base64 encoded private key
+ * @param {string} publicKeyBase64  - base64 encoded public key (paired with private key)
+ * @param {string} ciphertextBase64 - base64 encoded ciphertext
+ * @returns {Promise<string>} - decrypted plaintext string
+ */
+async function decryptMessage(privateKeyBase64, publicKeyBase64, ciphertextBase64) {
+  await ready;
+  const privateKey = Buffer.from(privateKeyBase64, 'base64');
+  const publicKey = Buffer.from(publicKeyBase64, 'base64');
+  const ciphertext = Buffer.from(ciphertextBase64, 'base64');
+  // crypto_box_seal_open requires the recipient's full keypair
+  const decrypted = sodium.crypto_box_seal_open(ciphertext, publicKey, privateKey);
+  return Buffer.from(decrypted).toString('utf-8');
+}
+
 module.exports = {
+  generateKeyPair,
+  encryptMessage,
+  decryptMessage,
   encrypt,
-  decrypt
+  decrypt,
 };
